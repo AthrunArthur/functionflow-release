@@ -24,6 +24,7 @@ THE SOFTWARE.
 #ifndef FF_RUNTIME_TASK_QUEUE_H_
 #define FF_RUNTIME_TASK_QUEUE_H_
 
+
 #include "runtime/taskbase.h"
 #ifdef USING_LOCK_FREE_QUEUE
 #include "runtime/ring_buff.h"

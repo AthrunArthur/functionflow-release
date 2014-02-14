@@ -22,7 +22,7 @@ else(Debug)
 	add_definitions(-DNDEBUG)
 endif(Release)
 
-add_definitions(-DUSING_LOCK_FREE_QUEUE)
+#add_definitions(-DUSING_LOCK_FREE_QUEUE)
 #add_definitions(-DUSING_FF_SPIN_STEAL_QUEUE)
 #add_definitions(-DUSING_MIMO_QUEUE)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)

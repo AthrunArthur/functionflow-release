@@ -30,6 +30,9 @@ THE SOFTWARE.
 #include <thread>
 #include <type_traits>
 #include <cassert>
+
+#define USING_FF_NONBLOCKING_QUEUE
+
 #ifdef FUNCTION_FLOW_DEBUG
 #include <iostream>
 #endif
