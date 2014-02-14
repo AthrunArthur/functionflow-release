@@ -81,7 +81,6 @@ protected:
 //    thread_local static work_stealing_queue *				m_pLQueue;
     std::atomic< bool>  				m_bAllThreadsQuit;
 
-    hp_owner<void>				m_oHPMutex;
     static runtime_ptr s_pInstance;
     static std::once_flag			s_oOnce;
     

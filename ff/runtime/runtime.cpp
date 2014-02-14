@@ -133,47 +133,6 @@ void 			runtime::run_task(task_base_ptr & pTask)
     thread_local static int i = get_thrd_id();
     int take_times = 0;
     int steal_times = 0;
-START:
-
-    _DEBUG(LOG_INFO(rt)<<"run_task() id:"<<get_thrd_id()<<" get task... "<<pTask.get();)
-    if(pTask->getHoldMutex() != invalid_mutex_id)
-    {
-        m_oHPMutex.get_hazard_pointer().store(pTask->getHoldMutex());
-        if(m_oHPMutex.outstanding_hazard_pointer_for(pTask->getHoldMutex()))
-        {
-            if(take_times >= m_oQueues[i]->size()+1 && steal_times > 2*rt::rt_concurrency())
-            {
-                pTask->run();
-                m_oHPMutex.get_hazard_pointer().store(invalid_mutex_id);
-            }
-            else {
-                m_oHPMutex.get_hazard_pointer().store(invalid_mutex_id);
-                m_oQueues[i]->push_back(pTask);
-                if(take_times & 0x1 )
-                {
-		    steal_times ++;
-                    if(!steal_one_task(pTask))
-		    {
-		      take_one_task(pTask);
-		    }
-		    take_times ++;
-                }
-                else
-		{
-		  take_one_task(pTask);
-		  take_times ++;
-		}
-                goto START;
-            }
-
-        }
-        else
-        {
-            pTask->run();
-            m_oHPMutex.get_hazard_pointer().store(invalid_mutex_id);
-        }
-    }
-    else
         pTask->run();
 }
 //#if 0
