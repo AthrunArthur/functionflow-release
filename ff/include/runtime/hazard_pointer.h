@@ -53,20 +53,21 @@ public:
         return m_pPointers[ff::rt::get_thrd_id()];
     }
 
-    //! return true if other thread had it.
-    bool  outstanding_hazard_pointer_for(T * p)
+    //! return index if other thread had it.
+    int  outstanding_hazard_pointer_for(T * p)
     {
+      int res = 0;
         thread_local static thrd_id_t id = ff::rt::get_thrd_id();
         if(!p)
-            return false;
+            return res;
         for(int i = 0; i < ff::rt::rt_concurrency(); i++)
         {
             if(i == id)
                 continue;
             if(m_pPointers[i].load(std::memory_order_acquire) == p)
-                return true;
+                return i;
         }
-        return false;
+        return res;
     }
 #ifdef FUNCTION_FLOW_DEBUG
     std::string	str()

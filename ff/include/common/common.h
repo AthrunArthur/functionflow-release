@@ -32,6 +32,7 @@ THE SOFTWARE.
 #include <cassert>
 
 #define USING_FF_NONBLOCKING_QUEUE
+//#define USING_FF_SPIN_STEAL_QUEUE
 
 #ifdef FUNCTION_FLOW_DEBUG
 #include <iostream>

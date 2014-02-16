@@ -57,6 +57,8 @@ public:
 #endif
     bool		take_one_task(task_base_ptr & p);
 
+    bool		local_take_one_task(task_base_ptr & p);
+    
         bool		steal_one_task(task_base_ptr & p);
 	    void			run_task(task_base_ptr & p);
     

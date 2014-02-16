@@ -73,6 +73,28 @@ public:
         _DEBUG(LOG_TRACE(queue)<<"mask:"<<mask<<" pos:"<<(h&mask));
         head.store(h+1, std::memory_order_release);
     }
+    /*
+    void push_front(const T & val)
+    {
+      scope_guard __l([this]() {steal_lock.lock();}, [this]() {steal_lock.unlock();});
+        auto t = tail.load(std::memory_order_acquire);
+        auto h = head.load(std::memory_order_relaxed);
+        auto c = cap.load(std::memory_order_relaxed);
+        auto a = array.load(std::memory_order_relaxed);
+        if(h - t == c-1)
+        {
+            resize(c<<1);
+            t = tail.load(std::memory_order_acquire);
+            h = head.load(std::memory_order_relaxed);
+
+            c = cap.load(std::memory_order_relaxed);
+            a = array.load(std::memory_order_relaxed);
+        }
+        auto mask = c -1;
+        a[h&mask] = val;
+        _DEBUG(LOG_TRACE(queue)<<"mask:"<<mask<<" pos:"<<(h&mask));
+        head.store(h+1, std::memory_order_release);
+    }*/
 
     bool pop(T & val)
     {
@@ -97,15 +119,13 @@ public:
         }
         
         auto mask = c - 1;
-        auto pos = h - 1;
         if(h == t)
         {
             return false;
         }
-
-        head.store(pos, std::memory_order_release);
-
-        val = a[pos&mask];
+	val = a[t&mask];
+        tail.store(t+1, std::memory_order_release);
+        
         _DEBUG(LOG_TRACE(queue)<<"mask:"<<mask<<" pos:"<<(pos&mask));
         return true;
     }
@@ -123,8 +143,9 @@ public:
             return false;
         
         auto mask = cap-1;
-            val = a[t &mask];
-	    tail.store(t+1);
+	auto pos = h - 1;
+            val = a[pos &mask];
+	    head.store(pos);
             return true;
     }
 
