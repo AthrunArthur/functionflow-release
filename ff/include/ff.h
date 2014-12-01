@@ -28,6 +28,7 @@ THE SOFTWARE.
 #include "para/data_wrapper.h"
 #include "para/para.h"
 #include "para/paragroup.h"
+#include "para/paracontainer.h"
 #include "para/wait.h"
 #include "common/scope_guard.h"
 #include "utilities/mutex.h"
@@ -44,7 +45,6 @@ void ff_wait(para<RT> & sexpr)
 {
 	ff_wait(sexpr && sexpr);
 }
-
 }//end namespace ff
 
 #endif

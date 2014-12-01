@@ -29,23 +29,28 @@ THE SOFTWARE.
 #include <atomic>
 #include <thread>
 #include <type_traits>
+#include <iterator>
 #include <cassert>
+#include "common/error_msg.h"
 
-#define USING_FF_NONBLOCKING_QUEUE
+#define CACHE_LINE_SIZE 64
+#define FF_DEFAULT_PARTITIONER simple_partitioner //or auto_partitioner
+//#define RECORD_WORK_STEAL //This is the on-off switch for logging work-stealing behavior
+//#define FUNCTION_FLOW_DEBUG
+
 
 #ifdef FUNCTION_FLOW_DEBUG
 #include <iostream>
 #endif
 
-#define CACHE_LINE_SIZE 64
-
 namespace ff {
 
 enum exe_state {
-    exe_wait = 1,
+    exe_empty = 1,
+    exe_init,
+    exe_wait,
     exe_over,
     exe_run,
-    exe_unknown,
 };
 exe_state operator &&(exe_state e1, exe_state  e2);
 exe_state operator ||(exe_state e1, exe_state e2);
@@ -57,6 +62,12 @@ typedef int32_t thrd_id_t;
 const thrd_id_t invalid_thrd_id = -1;
 
 }//end namespace ff
+
+#ifdef CLANG_LLVM
+#define TLS_t
+#else
+#define TLS_t thread_local static
+#endif
 
 
 #endif

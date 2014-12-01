@@ -25,9 +25,9 @@ THE SOFTWARE.
 #define FF_COMMON_FUNCTION_TRAITS_H_
 #include <functional>
 #include <type_traits>
+#include "common/is_callable.h"
+#include "func_type_checker.h"
 
-class stat;
-struct stat;
 namespace ff {
 namespace utils
 {

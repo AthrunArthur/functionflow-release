@@ -24,7 +24,6 @@ THE SOFTWARE.
 #ifndef FF_RUNTIME_TASK_QUEUE_H_
 #define FF_RUNTIME_TASK_QUEUE_H_
 
-
 #include "runtime/taskbase.h"
 #ifdef USING_LOCK_FREE_QUEUE
 #include "runtime/ring_buff.h"
@@ -40,6 +39,11 @@ THE SOFTWARE.
 
 #ifdef USING_MIMO_QUEUE
 #include "runtime/mimo_queue.h"
+#endif
+
+#ifdef USING_WORK_STEALING_QUEUE
+//#include "runtime/twsq.h"
+#include "runtime/gtwsq.h"
 #endif
 
 #include "runtime/env.h"
@@ -62,6 +66,12 @@ typedef spin_stealing_queue<task_base_ptr, 8> work_stealing_queue;
 #ifdef USING_MIMO_QUEUE
 typedef mimo_lock_free_queue<task_base_ptr, 6> work_stealing_queue;
 #endif
+
+#ifdef USING_WORK_STEALING_QUEUE
+//typedef classical_work_stealing_queue<task_base_ptr, 20> work_stealing_queue;
+typedef gcc_work_stealing_queue<task_base_ptr, 8> work_stealing_queue;
+#endif
+
 typedef work_stealing_queue * work_stealing_queue_ptr;
 typedef std::vector<ctx_pdict_ptr> local_stack_queue;
 

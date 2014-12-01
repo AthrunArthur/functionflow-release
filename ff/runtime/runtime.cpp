@@ -24,10 +24,28 @@ THE SOFTWARE.
 #include "runtime/rtcmn.h"
 #include "runtime/runtime.h"
 #include "utilities/mutex.h"
+#ifdef FUNCTION_FLOW_DEBUG
+#include "runtime/record.h"
+
+#endif
+
+#ifdef FUNCTION_FLOW_DEBUG
+#include <signal.h>
+void sighandler(int signum)
+{
+  std::cout<<"Caught signal:" <<signum<<std::endl;
+  std::cout<<"Now dumping info..."<<std::endl;
+  ff::rt::all_records::getInstance()->dump_all();
+  exit(-1);
+}
+#endif
 
 namespace ff {
 
 namespace rt {
+#ifdef FUNCTION_FLOW_DEBUG
+ all_records * all_records::s_pInstance = nullptr;
+#endif
 std::shared_ptr<runtime_deletor> runtime_deletor::s_pInstance(nullptr);
 runtime_ptr runtime::s_pInstance(nullptr);
 std::once_flag		runtime::s_oOnce;
@@ -71,7 +89,11 @@ runtime::~runtime()
 runtime_ptr 	runtime::instance()
 {
     if(!s_pInstance)
+#ifdef  CLANG_LLVM 
+        init();
+#else
         std::call_once(s_oOnce, runtime::init);
+#endif
     return s_pInstance;
 }
 
@@ -84,6 +106,18 @@ void			runtime::init()
     {
         s_pInstance->m_oQueues.push_back(std::unique_ptr<work_stealing_queue>(new work_stealing_queue()));
     }
+#ifdef FUNCTION_FLOW_DEBUG
+    all_records * prs = all_records::getInstance();
+    prs->init(thrd_num, "wsr.dat");
+    struct sigaction act_h;
+    struct sigaction old_act;
+    act_h.sa_handler = sighandler;
+    memset(&act_h, 0, sizeof(act_h));
+    act_h.sa_handler = sighandler;
+
+    sigaction(SIGINT,&act_h,&old_act);
+    sigaction(SIGSEGV, &act_h, &old_act);
+#endif
     _DEBUG(LOG_INFO(rt)<<"init thread num:"<<thrd_num)
     set_local_thrd_id(0);
 
@@ -100,7 +134,7 @@ void			runtime::init()
 
 void	runtime::schedule(task_base_ptr p)
 {
-    thread_local static int i = get_thrd_id();
+    TLS_t int i = get_thrd_id();
     _DEBUG(LOG_INFO(rt)<<"runtime::schedule() id:"<<i<<" task: "<<p.get();)
     m_oQueues[i] ->push_back(p);
     _DEBUG(LOG_INFO(rt)<<"runtime::schedule() end id:"<<i<<" task: "<<p.get();)
@@ -110,7 +144,7 @@ void	runtime::schedule(task_base_ptr p)
 #ifdef USING_MIMO_QUEUE
 void runtime::schedule(task_base_ptr p, thrd_id_t target_thrd)
 {
-    thread_local static int i = get_thrd_id();
+    TLS_t int i = get_thrd_id();
     //target_thrd = get_idle();
     if(i == target_thrd || ! m_oQueues[target_thrd]->concurrent_push(p))
         m_oQueues[target_thrd]->push_back(p);
@@ -120,17 +154,105 @@ bool		runtime::take_one_task(task_base_ptr & pTask)
 {
     bool b = false;
 
-    thread_local static int i = get_thrd_id();
+    TLS_t int i = get_thrd_id();
     b = m_oQueues[i]->pop(pTask);
     if(!b)
     {
         b = steal_one_task(pTask);
+        _DEBUG(
+        if(b)
+        {
+                if(pTask == nullptr){
+                    ff::rt::all_records::getInstance()->dump_all();
+                    std::cout<<"steal invalid task"<<std::endl;
+                }
+                assert(pTask !=nullptr && "Steal invalid task!");
+        })
+    }
+    
+    else{
+#ifdef FUNCTION_FLOW_DEBUG
+      if(pTask==nullptr)
+      {
+        ff::rt::all_records::getInstance()->dump_all();
+        std::cout<<"pop invalid task"<<std::endl;
+        assert(pTask != nullptr && "Invalid task");
+      }
+#endif
     }
     return b;
 }
+
 void 			runtime::run_task(task_base_ptr & pTask)
 {
-    thread_local static int i = get_thrd_id();
+  pTask->run();
+}
+#if 0
+void 			runtime::run_task(task_base_ptr & pTask)
+{
+    TLS_t int i = get_thrd_id();
+    int take_times = 0;
+    int steal_times = 0;
+    double least_cost = 1;
+    constexpr int least_times = 5;
+START:
+
+    _DEBUG(LOG_INFO(rt)<<"run_task() id:"<<get_thrd_id()<<" get task... "<<pTask.get();)
+    if(pTask->getHoldMutex() != invalid_mutex_id)
+    {
+        mutex * pmutex = static_cast<mutex *>(pTask->getHoldMutex());
+        double hist_cost = pmutex->thread_schedule_cost();
+        m_oHPMutex.get_hazard_pointer().store(pTask->getHoldMutex());
+        if(m_oHPMutex.outstanding_hazard_pointer_for(pTask->getHoldMutex()))
+        {
+            if(take_times < least_times || hist_cost > least_cost)
+            {
+                m_oHPMutex.get_hazard_pointer().store(invalid_mutex_id);
+                m_oQueues[i]->push_back(pTask);
+                if(take_times &0x1F == 0 )
+                {
+		    steal_times ++;
+                    if(!steal_one_task(pTask))
+		    {
+		      take_one_task(pTask);
+		    }
+                }
+                else
+		{
+		  take_one_task(pTask);
+		}
+		take_times ++;
+                least_cost = least_cost > hist_cost ?
+                  hist_cost : least_cost;
+                goto START;
+            }
+            else
+            {
+                std::atomic<void *> & t = m_oHPMutex.get_hazard_pointer();
+                pmutex->callback_postunlock = [ & t](mutex_id_t no_use){
+                  t.store(invalid_mutex_id);
+                };
+                pTask->run();
+            }
+        }
+        else
+        {
+            std::atomic<void *> & t = m_oHPMutex.get_hazard_pointer();
+            pmutex->callback_postunlock = [ & t](mutex_id_t no_use){
+              t.store(invalid_mutex_id);
+            };
+            pTask->run();
+            //m_oHPMutex.get_hazard_pointer().store(invalid_mutex_id);
+        }
+    }
+    else
+        pTask->run();
+}
+#endif
+#if 0 //The old scheduler
+void 			runtime::run_task(task_base_ptr & pTask)
+{
+    TLS_t int i = get_thrd_id();
     int take_times = 0;
     int steal_times = 0;
 START:
@@ -176,11 +298,11 @@ START:
     else
         pTask->run();
 }
-//#if 0
+#endif
 void			runtime::thread_run()
 {
     bool flag = false;
-    thread_local static int cur_id = get_thrd_id();
+    TLS_t int cur_id = get_thrd_id();
     _DEBUG(LOG_INFO(rt)<<"runtime::thread_run() id:"<<cur_id<<" enter...")
     task_base_ptr pTask;
     while(!m_bAllThreadsQuit)
@@ -198,7 +320,7 @@ void			runtime::thread_run()
 
 bool		runtime::steal_one_task(task_base_ptr & pTask)
 {
-    thread_local static int cur_id = get_thrd_id();
+    TLS_t int cur_id = get_thrd_id();
     size_t dis = 1;
     size_t ts = m_oQueues.size();
     while((cur_id + dis)%ts !=cur_id)
@@ -216,8 +338,8 @@ bool		runtime::steal_one_task(task_base_ptr & pTask)
 
 bool		runtime::is_idle()
 {
-    thread_local static int cur_id = get_thrd_id();
-    thread_local static size_t ts = m_oQueues.size();
+    TLS_t int cur_id = get_thrd_id();
+    size_t ts = m_oQueues.size();
     if(m_oQueues[cur_id]->size() != 0)
         return false;
 
@@ -233,8 +355,8 @@ bool		runtime::is_idle()
 
 thrd_id_t	runtime::get_idle()
 {
-    thread_local static int cur_id = get_thrd_id();
-    thread_local static size_t ts = m_oQueues.size();
+    TLS_t int cur_id = get_thrd_id();
+    size_t ts = m_oQueues.size();
     size_t dis = 1;
     thrd_id_t idle_id = (cur_id + 1) %ts;
     auto idle_queue_size = m_oQueues[(cur_id + 1)%ts]->size();

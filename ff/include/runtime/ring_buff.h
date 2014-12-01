@@ -34,15 +34,16 @@ namespace ff {
 namespace rt {
 
 #define MEM_SEQ_CST std::memory_order_seq_cst
+  /*
 #define MEM_ACQUIRE std::memory_order_seq_cst
 #define MEM_RELAXED std::memory_order_seq_cst
 #define MEM_RELEASE std::memory_order_seq_cst
-  
-/*
+*/
+
 #define MEM_ACQUIRE std::memory_order_acquire
 #define MEM_RELAXED std::memory_order_relaxed
 #define MEM_RELEASE std::memory_order_release
-*/
+
 //N , 2^N.
 template <class T, size_t N>
 class nonblocking_stealing_queue

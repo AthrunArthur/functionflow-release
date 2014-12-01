@@ -21,17 +21,23 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 *************************************************/
-#include "function_traits.h"
-#include <iostream>
+#ifndef FF_PARA_PARAS_WITH_LOCK_H_
+#define FF_PARA_PARAS_WITH_LOCK_H_
 
-template<class F>
-void print_property(F && f){};
+#include "common/common.h"
 
-void f(int a){};
+#include "para/para.h"
+#include "common/spin_lock.h"
 
-int main()
+namespace ff
 {
-	std::cout<<ff::utils::is_no_args_function<decltype(main)>::value<<std::endl;
-	std::cout<<ff::utils::is_no_args_function<decltype(f)>::value<<std::endl;
-return 0;
+    namespace internal
+    {
+        class paras_with_lock{
+        public:
+            std::vector<para<void> >  entities;
+            ff::spinlock	lock;
+        };
+    }
 }
+#endif

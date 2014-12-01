@@ -26,25 +26,70 @@ THE SOFTWARE.
 #include "runtime/env.h"
 #include "common/common.h"
 #include "runtime/runtime.h"
+#include <fstream>
+#include <sstream>
+#ifdef __linux__
+#include <time.h>
+#endif
 
 namespace ff {
+static int gmcounter = 0;
 
 class mutex
 {
 public:
-    mutex(): m_mutex(){};
+    mutex(): m_mutex()
+    , m_locked()
+    , m_thread_schedule_cost(rt::allocate_thread_local<double>(1))
+    , callback_prelock([](mutex_id_t){})
+    , callback_postlock([](mutex_id_t){})
+    , callback_postunlock([](mutex_id_t){}) {};
     
     mutex(const mutex &) = delete;
     mutex & operator = (const mutex & ) = delete;
+    ~mutex()
+    {
+    }
 
-    inline void		lock(){m_mutex.lock();}
-    void		unlock(){m_mutex.unlock();}
+    inline void		lock(){
+      bool is_conflict = m_locked.load();
+      static double alpha = 0.5;
+      static double beta = 1-alpha;
+      static auto  cmp_func = [](double x, double n){return alpha *x + beta * n;};
+      callback_prelock(this);
+      m_mutex.lock();
+      m_locked.store(true);
+      if(is_conflict)
+      {
+        thread_schedule_cost() = cmp_func(thread_schedule_cost(), 1);
+      }
+      else
+      {
+        thread_schedule_cost() = cmp_func(thread_schedule_cost(), 0);
+      }
+      callback_postlock(this);
+    }
+    void		unlock(){
+      m_mutex.unlock();
+      m_locked.store(false);
+      callback_postunlock(this);
+    }
+
+    double & thread_schedule_cost() {
+      TLS_t thrd_id_t thrd_id = rt::get_thrd_id();
+      return m_thread_schedule_cost[thrd_id];
+    }
 
     inline mutex_id_t	id() {return this;}
-    
+public:
+    //several hook function
+    std::function<void (mutex_id_t)> callback_prelock;
+    std::function<void (mutex_id_t)> callback_postlock;
+    std::function<void (mutex_id_t)> callback_postunlock;
 protected:
     std::mutex  m_mutex;
-    
+    std::atomic_bool  m_locked;
+    std::vector<double> m_thread_schedule_cost;
 };//end class mutex
 }//end namespace ff
 
